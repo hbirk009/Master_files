@@ -1,0 +1,9 @@
+##################################
+dependecies of my project
+##################################
+
+-uhal
+-sys
+-bitstring
+-mongoDB
+-pyqt5

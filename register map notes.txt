@@ -1,0 +1,140 @@
+-trenger register 12bit kontroll, 2 for hver stav vdd og avdd
+6 bit addresse-verdi for lagene (gir 64 addresse, meir enn nok, vi har 43 lag)
+- trenger to strøm og to spenning-lesninger fra hvert lag *(43 lag)
+-16 bit addresse for sub-lab, for registrene på laget
+-lag tabell for hvert lag for registrene og lag register map (hva addresse skal gi spenningsverdier, hva er read og write)
+-lage ein mastergui som kan gå inn i kvart lag fra masteren
+---------------------------------------------------------------------------------------------------------------------
+
+%GUI og SW notes
+
+-skriving blir gjort med board.write_reg (ipbus kommando)
+-ingen direkte lese-funksjon
+-write reg parametrene: (addrese.modul + modul_H.registernavn, verdi som en skriver til registeret)
+-sets_bits_in_place setter bits på plass i riktig felt
+-DB_save funksjonene inneholder funskjonenen som blir brukt til å skrive til databasen
+-databasen er kun ein konfigurasjonsdatabase så langt
+-col1 funksjon blir brukt til å skrive til Databasen
+-readme har installasjonsguide på uhal og sånt
+----------------------------------------------------------------------------------------------------------------------
+
+%Birger notater
+
+-vi har enable signaler for hver stav slik at vi kan teste stavene for høy strømbruk
+-4 bit enable-signal for 12 staver
+-13 bit signal for avdd og dvdd for et lag
+-ina3221 har 13 bit for lesing av spenning, ina226 har 16 bit
+---------------------------------------------------------------------------------------------------------------------
+
+%Register map notater
+
+-Vi må monitorere høy strømbruk og temperatur, hvordan overføre temperaturinformasjon til topp?
+-Ha error-bits til hvert lag samlet for hver twisted-pair? en error-bit for hvert par av fire layers
+-"housekeeping data"
+-lag gui som snakker med ein enkel k7-fpga
+- Har gitt alarm for høy DVdd, AVdd, overstrøm, P-well, temperatur. (status register, 1 bit for DVdd, AVdd, P-well, overstrøm 2 bit for temperatur)
+-blokkskjema av fpga, hva trenger den
+-----------------------------------------------------------------------------------------------------------------------
+
+%Johan diskusjon etter emulator var satt opp
+
+-Emuler rx og tx registerene. Bygg opp en modul først og test den. (modul = de 45 modulene som skal holde styr på hver sin mikrokontroller)
+-Lag register map til mikrokontroller
+
+-----------------------------------------------------------------------------------------------------------------------
+
+-2*2*45 pinner i FPGAen
+- Finn FPGA demokort på XILLINX nettsider som passer monitor modulen, bonuspoeng hvis designet har ipbus test-protokoll
+-Potensiell FPGAer:
+    -Xilinx Kintex-7 FPGA KC705 Evaluation Kit (Har IPbus eksempel design) $2120        --antall brukbare pins = 160 HPC + 68 LPC
+    -Xilinx Kintex UltraScale FPGA KCU105 Evaluation Kit (Har IPbus eksempel design) $3594 --antall brukbare pins = 160 HPC + 116 HPC + 68 LPC + 68 LPC
+    -Xilinx Virtex UltraScale+ FPGA VCU118 Evaluation Kit (Har IPbus eksempel design) $6995 --antall brukbare pins =
+
+------------------------------------------------------------------------------------------------------------------------
+
+%GUI-funksjoner
+    -første funksjon: skriv TX/rx
+    -Andre funksjon : sett tresholds? broadcast or singular
+
+
+-------------------------------------------------------------------------------------------------------------------------
+
+%02-11-21 software møte
+    -Hvordan skal debugging fungere i sluttproduktet? skal GUI kunne snakke direkte med stavene, eller skal et script (python fire?)
+    -Sjå på hvordan Jonas har implementert konfigurasjon av chippene gjennom MongoDB
+    -Presenter hva jeg har gjort og fremdriftsplan 16-11-21: VIKTIG
+    -Finn passende demo board. Bør bli prioritert!
+
+
+% 09-11-21 velger fpga demo board
+    - I AM electronics breakout module for fmc (lpc eller hpc? har det noko å sei?)
+    -Finn ut spenningsnivåene til I/O til FPGAen. Hvis spenningsnivået er for lavt, trenger vi en buffer for signalet.
+    -Sjekk lead time for fpga kcu105 fra avnet
+
+% 16-11-21 mikromøte
+    -Grafana tool to plot graphs for monitoring, evetually interface with influxDB
+
+-----------------------------------------------------------------------------------------------------------------------
+%18-01-22
+    -document and make a tutorial on the APIs of the classes and how to use GUI. README. Make it on Wiki?
+
+-----------------------------------------------------------------------------------------------------------------------
+%21-01-22
+    -skru på stavene en om gangen, hvor skal det skje, software eller microcontroller?
+    -8 bit protokoll, må koble sammen to register for å få 16 bit, hvor skal den koblingen skje?
+    -Test-modus
+    -API til IPbus- prioritere denne først
+    -enable register som forteller oss hvilken power supply-kort som er tilgjengelig. Denne skal være i konfigurasjonsdatabasen
+    -skal hvert layer være konfigurerbar eller skal alle layers ha samme settings
+
+-----------------------------------------------------------------------------------------------------------------------
+%25-01-22
+    -- IPbus API: for example, I want to read a 12 bit register, must send two read requests, enable and disable for each card, in case some layers can't be used
+    -- When we power the system, how do we do it?
+    -- Make a table on what needs to be done on the setup of the power supply system
+    -- low level of API, Get and Set functions, broadcast functionality... Higher level API will perform more intelligent tasks through the low level API
+
+------------------------------------------------------------------------------------------------------------------------
+%28-01-22: setup table
+    -- Enable register i FPGAen bestemmer hvilken lag skal skrus på
+    1. Skru på alle lagene i enable registeret
+    2. Send konfigurasjonsdata ned til lagene
+    3. Skru på en stav, sett strøm-threshold til 1/12 av nominell verdi og sjekk om den blir skrudd av av mikrokontrolleren, skru på neste med 2/12 av nominell verdi osv... helt til 12 staver er skrudd på
+    4. Start monitorering
+    monitorering:
+    1. monitorer stavene ved å pinge de hele tiden i korte intervall (1 sek?)
+    2. Software ber om verdiene til strøm og temp. for alle lagene gjennom et broadcast signal og så plukker opp alle verdiene en etter en
+     debugging:
+    1. Utfør test på at alle stavene fungerer (Sett strøm-threshold til 1/12 av nominelle verdi og test en og en stav for stor strømbruk)
+    2. en dårlig stav vil trekke mer en 1/12 av nominell strømverdi derfor endre enable registeret på mikrokontrolleren for å skru av den staven
+
+
+-------------------------------------------------------------------------------------------------------------------------
+%15-02-22: software-møte
+- etter eg er ferdig med API og GUI, to valg:
+    1. hjelpe bachelorstudentene sette opp IPbus
+    2. sjå på grafana og monitoreringsdatabase
+
+- eg må begynne å skrive thesis, viktig å skrive ned hvordan dataen blir behandlet og sendt ned gjennom IPbus og hvordan system er satt opp med broadcast, FIFO, osv.
+
+-------------------------------------------------------------------------------------------------------------------------
+%22-02-2022: software møte
+- save logging window info in an another module (centralized logging module) pipe?
+- snakk med viljar om hjelp til å sette opp IPbus på hardware
+
+
+    
+
+-- concatenate bit i tx signalet
+-- monitoreringdatabase, kun oppdaters hvis endring av en verdi er signifikant
+terminal i GUI, snakke med API direkte funksjonalitet (pythonfire?)
+
+
+--------------------------------------------------------------------------------------------------------------------------
+%01-03-22: Plan framover
+
+1. Eksportere database til JSON-format      --done!
+2. Legge til funksjon i mcu_api til å konfigurere alle registerene  --done!
+3. Utvide doxygen dokumentasjon
+4. Sett opp skjelett av oppgaven
+5. Enable signals i databasen skal inneholde bit pattern, ikke reine tall
